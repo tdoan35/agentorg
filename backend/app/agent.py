@@ -1,26 +1,18 @@
-# Simple Strands Agent for AgentCore
-import os
-import logging
-import sys
 from strands import Agent
 from strands.models import BedrockModel
+import logging
+import sys
+
+from agent_factory import create_agent_from_spec, AgentSpec
 
 # Configure logging to stdout
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
 
-system_prompt = '''
-You are a helpful assistant. Respond ONLY in JSON format.
-Schema:
-{
-  "status": "string",
-  "message": "string"
-}
-'''
 
 def create_agent():
     model = BedrockModel(
@@ -33,6 +25,8 @@ def create_agent():
         system_prompt=system_prompt,
         tools=[] # Basic version with no tools
     )
+    return create_agent_from_spec(spec)
+
 
 def run_agent(prompt):
     """Process a request using the Strands agent"""
@@ -43,9 +37,7 @@ def run_agent(prompt):
         return str(response)
     except Exception as e:
         import traceback
+
         print(f"ERROR: Exception in run_agent: {str(e)}")
         traceback.print_exc()
-        return {
-            "status": "Error",
-            "message": "Internal error occurred."
-        }
+        return {"status": "Error", "message": "Internal error occurred."}
