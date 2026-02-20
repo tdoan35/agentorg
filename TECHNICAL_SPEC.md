@@ -13,7 +13,7 @@ AgentOrg is a multi-agent system where employees interact through personal AI ag
 | Decision              | Choice                                  | Rationale                                                    |
 | --------------------- | --------------------------------------- | ------------------------------------------------------------ |
 | Agent Framework       | AWS Strands Agents SDK                  | Native Bedrock integration, AWS-native for prize eligibility |
-| Frontend              | CopilotKit (standard chat) + custom SSE | CopilotKit for prize track; SSE for real-time agent state    |
+| Frontend              | Next.js 14 (App Router) + CopilotKit + shadcn/ui | URL-routed personas, CopilotKit for prize track, shadcn for fast UI |
 | Backend               | Python / FastAPI                        | Async support, Strands compatibility, fast to scaffold       |
 | Graph DB              | Neo4j (Docker)                          | Local container, full Cypher support for prize track         |
 | Realtime Transport    | Server-Sent Events (SSE)               | CopilotKit default, simple one-way streaming                 |
@@ -65,23 +65,54 @@ agentorg/
 │       └── ...
 ├── frontend/
 │   ├── package.json
+│   ├── next.config.ts               # Next.js config (API rewrites to FastAPI)
+│   ├── tailwind.config.ts           # Tailwind + shadcn/ui theme
+│   ├── components.json              # shadcn/ui config
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── page.tsx             # Main chat page
-│   │   │   └── layout.tsx
+│   │   │   ├── layout.tsx           # Root layout (CopilotKit provider, TitleBar)
+│   │   │   ├── page.tsx             # Landing redirect → /ask
+│   │   │   ├── ask/
+│   │   │   │   └── page.tsx         # Ask tab (chat interface)
+│   │   │   ├── agents/
+│   │   │   │   └── page.tsx         # Agents tab (agent detail + permissions)
+│   │   │   ├── tasks/
+│   │   │   │   └── page.tsx         # Tasks tab (approval queue)
+│   │   │   └── api/
+│   │   │       └── copilotkit/
+│   │   │           └── route.ts     # CopilotKit runtime proxy → FastAPI
 │   │   ├── components/
-│   │   │   ├── ChatPanel.tsx        # CopilotKit chat wrapper
-│   │   │   ├── PersonaSwitcher.tsx  # FM | Accountant | CEO tabs
-│   │   │   ├── AgentStatusBar.tsx   # Real-time agent state display
-│   │   │   ├── ApprovalDialog.tsx   # Approval gate UI
-│   │   │   └── AuditTrail.tsx       # Request chain visualization
+│   │   │   ├── ui/                  # shadcn/ui primitives (button, card, dialog, etc.)
+│   │   │   ├── layout/
+│   │   │   │   └── TitleBar.tsx     # macOS-style title bar with tab navigation
+│   │   │   ├── chat/
+│   │   │   │   ├── ChatPanel.tsx    # CopilotKit chat wrapper + input bar
+│   │   │   │   └── MessageBubble.tsx
+│   │   │   ├── persona/
+│   │   │   │   └── PersonaBadge.tsx # Active persona pill badge
+│   │   │   ├── agent/
+│   │   │   │   ├── AgentHero.tsx        # Gradient avatar + name header
+│   │   │   │   ├── AgentSelector.tsx    # Agent pill switcher (FM | Accountant | CEO)
+│   │   │   │   ├── AgentStatusBar.tsx   # Real-time agent state display
+│   │   │   │   ├── PermissionsCard.tsx  # 3-column permission config card
+│   │   │   │   └── PermissionCheckbox.tsx # Individual checkbox row
+│   │   │   └── approval/
+│   │   │       ├── ApprovalQueue.tsx    # Filterable approval list
+│   │   │       ├── ApprovalItem.tsx     # Single approval row with actions
+│   │   │       ├── ApprovalFilters.tsx  # Filter chips (All | Pending | Approved)
+│   │   │       └── ApprovalDialog.tsx   # Modal for approve/deny action
 │   │   ├── hooks/
 │   │   │   ├── useAgentSSE.ts       # SSE connection hook
 │   │   │   └── useApproval.ts       # Approval state hook
-│   │   └── lib/
-│   │       ├── api.ts               # Backend API client
-│   │       └── types.ts             # Shared TypeScript types
-│   └── ...
+│   │   ├── lib/
+│   │   │   ├── api.ts               # Backend API client
+│   │   │   ├── types.ts             # Shared TypeScript types
+│   │   │   ├── store.ts             # Zustand store (active persona state)
+│   │   │   └── personas.ts          # Persona config (name, role, color, icon)
+│   │   └── styles/
+│   │       └── globals.css          # Tailwind directives + CSS variables
+│   └── public/
+│       └── ...
 └── scripts/
     ├── seed-neo4j.sh                # Convenience script to seed graph
     └── start-dev.sh                 # Start all services locally
@@ -210,7 +241,10 @@ The orchestrator is the central nervous system — it routes messages between ag
 POST   /api/chat                    # User sends a message to their active agent
 GET    /api/chat/stream             # SSE stream for real-time agent state
 POST   /api/agents/request          # Agent-to-agent request (internal)
-GET    /api/approvals               # List pending approvals
+GET    /api/agents                  # List all agents with their current config
+GET    /api/agents/{slug}           # Get single agent config + permissions
+PUT    /api/agents/{slug}/permissions  # Update agent permissions (data access, tools, routing)
+GET    /api/approvals               # List pending approvals (filterable by status)
 POST   /api/approvals/{id}/approve  # Approve a pending request
 POST   /api/approvals/{id}/deny     # Deny a pending request
 GET    /api/audit                   # Audit trail for a conversation
@@ -529,64 +563,530 @@ async def stream(conversation_id: str, request: Request):
 
 ## 7. Frontend Architecture
 
-### 7.1 CopilotKit Integration
+### 7.1 Overview
 
-CopilotKit is used as the chat UI shell. Since we're using Strands (not LangGraph), we use CopilotKit's standard `<CopilotChat>` component and supplement it with custom SSE-driven state indicators.
+The frontend is a **Next.js 14+ App Router** application using **shadcn/ui + Tailwind CSS** for styling and **CopilotKit** (standard chat mode) as the chat interface. The app uses a **three-tab layout** — Ask, Agents, Tasks — with a macOS-style title bar. The Agents tab features a detail view with an eevee-inspired permissions card for configuring each agent's data access, tools, and routing. A Next.js API route proxies CopilotKit runtime requests to the FastAPI backend, keeping everything under a single origin.
 
-```tsx
-// Simplified page structure
-<CopilotKit runtimeUrl="/api/copilotkit">
-  <div className="flex h-screen">
-    <Sidebar>
-      <PersonaSwitcher active={persona} onChange={setPersona} />
-      <AuditTrail events={events} />
-    </Sidebar>
-    <Main>
-      <AgentStatusBar status={agentStatus} />
-      <CopilotChat />
-      <ApprovalDialog
-        pending={pendingApprovals}
-        onApprove={handleApprove}
-        onDeny={handleDeny}
-      />
-    </Main>
-  </div>
-</CopilotKit>
+### Design Reference
+
+The UI designs live in `agentorg.pen` (Pencil design file). Key screens:
+- **Ask Tab** — Chat interface with agent greeting, persona badge, and input bar
+- **Agents Tab** — Agent detail view with hero header, agent selector pills, and a 3-column permissions card (Data Access | Tools | Routing)
+- **Tasks Tab** — Approval queue with filter chips and task items showing pending/approved/denied states
+
+### 7.2 Next.js Configuration
+
+```ts
+// frontend/next.config.ts
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  async rewrites() {
+    return [
+      {
+        // Proxy all backend API calls to FastAPI
+        source: "/backend/:path*",
+        destination: "http://localhost:8000/api/:path*",
+      },
+    ];
+  },
+};
+
+export default nextConfig;
 ```
 
-### 7.2 Key Components
+### 7.3 Route Structure
 
-| Component           | Purpose                                                              |
-| ------------------- | -------------------------------------------------------------------- |
-| `PersonaSwitcher`   | Tabs to switch between FM, Accountant, CEO personas                  |
-| `AgentStatusBar`    | Animated bar showing agent state ("Routing to Accountant...", etc.)   |
-| `ApprovalDialog`    | Modal that appears when the Accountant persona receives an approval request |
-| `AuditTrail`        | Sidebar panel showing the chain of events for the current conversation |
-| `ChatPanel`         | CopilotKit `<CopilotChat>` wrapper with persona-aware styling        |
+The app uses a **tab-based layout** with three top-level routes, not persona-based routes. The active persona is selected within the Ask and Agents tabs via client-side state (agent selector pills).
 
-### 7.3 SSE Hook
+```
+/                              → Redirect to /ask
+/ask                           → Ask tab (chat interface)
+/agents                        → Agents tab (agent config + permissions)
+/tasks                         → Tasks tab (approval queue)
+/api/copilotkit                → CopilotKit runtime proxy (API route)
+```
+
+#### Root Layout — CopilotKit Provider + Title Bar
+
+```tsx
+// frontend/src/app/layout.tsx
+import { CopilotKit } from "@copilotkit/react-core";
+import "@copilotkit/react-ui/styles.css";
+import { TitleBar } from "@/components/layout/TitleBar";
+import "./globals.css";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body className="bg-[#0D0D0D] text-white">
+        <CopilotKit runtimeUrl="/api/copilotkit">
+          <div className="flex flex-col h-screen">
+            <TitleBar />
+            <main className="flex-1 overflow-hidden">{children}</main>
+          </div>
+        </CopilotKit>
+      </body>
+    </html>
+  );
+}
+```
+
+#### Title Bar — macOS-Style with Tab Navigation
+
+The title bar is a fixed 52px header with traffic lights, center tab navigation (Ask | Agents | Tasks), and right-side controls. The active tab has a filled background (`bg-hover`) and bold text.
+
+```tsx
+// frontend/src/app/components/layout/TitleBar.tsx
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+
+const TABS = [
+  { label: "Ask", href: "/ask" },
+  { label: "Agents", href: "/agents" },
+  { label: "Tasks", href: "/tasks" },
+];
+
+export function TitleBar() {
+  const pathname = usePathname();
+
+  return (
+    <header className="h-[52px] bg-[#1A1A1A] border-b border-[#2A2A2A] flex items-center justify-between px-4">
+      {/* Left: Traffic lights + sidebar toggle + nav arrows */}
+      <div className="flex items-center gap-3">
+        <div className="flex gap-2">
+          <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
+          <div className="w-3 h-3 rounded-full bg-[#FEBC2E]" />
+          <div className="w-3 h-3 rounded-full bg-[#28C840]" />
+        </div>
+        {/* ... sidebar toggle, nav arrows */}
+      </div>
+
+      {/* Center: Tab navigation */}
+      <nav className="flex items-center">
+        {TABS.map((tab) => {
+          const isActive = pathname.startsWith(tab.href);
+          return (
+            <Link
+              key={tab.href}
+              href={tab.href}
+              className={cn(
+                "px-4 py-2 rounded-lg text-[13px] font-medium",
+                isActive
+                  ? "bg-[#333333] text-white font-semibold"
+                  : "text-[#71717A]"
+              )}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Right: New chat + avatar */}
+      <div className="flex items-center gap-2">{/* ... */}</div>
+    </header>
+  );
+}
+```
+
+#### Ask Page — Chat Interface
+
+```tsx
+// frontend/src/app/ask/page.tsx
+"use client";
+
+import { ChatPanel } from "@/components/chat/ChatPanel";
+import { AgentStatusBar } from "@/components/agent/AgentStatusBar";
+import { ApprovalDialog } from "@/components/approval/ApprovalDialog";
+import { PersonaBadge } from "@/components/persona/PersonaBadge";
+import { usePersonaStore } from "@/lib/store";
+
+export default function AskPage() {
+  const { activePersona } = usePersonaStore();
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center">
+      <AgentStatusBar />
+      <div className="flex flex-col items-center gap-6">
+        {/* Agent icon + greeting */}
+        <div className="w-14 h-14 rounded-full bg-[#8B5CF6] flex items-center justify-center">
+          <BotIcon className="w-7 h-7 text-white" />
+        </div>
+        <h1 className="text-[28px] font-semibold font-[Outfit]">
+          How can I help you today?
+        </h1>
+        <p className="text-[#71717A] text-sm text-center max-w-[420px]">
+          Ask your agent anything. It will coordinate with other agents on your behalf.
+        </p>
+        <PersonaBadge persona={activePersona} />
+      </div>
+      <ChatPanel persona={activePersona} />
+      <ApprovalDialog />
+    </div>
+  );
+}
+```
+
+#### Agents Page — Agent Detail + Permissions
+
+```tsx
+// frontend/src/app/agents/page.tsx
+"use client";
+
+import { useState } from "react";
+import { AgentHero } from "@/components/agent/AgentHero";
+import { AgentSelector } from "@/components/agent/AgentSelector";
+import { PermissionsCard } from "@/components/agent/PermissionsCard";
+import { PERSONAS, type PersonaSlug } from "@/lib/personas";
+
+export default function AgentsPage() {
+  const [selected, setSelected] = useState<PersonaSlug>("finance-manager");
+  const persona = PERSONAS[selected];
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-5 pb-10">
+      <AgentHero persona={persona} />
+      <AgentSelector selected={selected} onSelect={setSelected} />
+      <PermissionsCard persona={persona} />
+    </div>
+  );
+}
+```
+
+#### Tasks Page — Approval Queue
+
+```tsx
+// frontend/src/app/tasks/page.tsx
+"use client";
+
+import { ApprovalQueue } from "@/components/approval/ApprovalQueue";
+import { ApprovalFilters } from "@/components/approval/ApprovalFilters";
+
+export default function TasksPage() {
+  const [filter, setFilter] = useState<"all" | "pending" | "approved">("all");
+
+  return (
+    <div className="flex-1 flex flex-col items-center p-8 gap-6">
+      <div className="w-[800px] flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-semibold font-[Outfit]">Approval Queue</h1>
+          <p className="text-[#71717A] text-sm">
+            Review and approve data access requests from other agents.
+          </p>
+        </div>
+        <ApprovalFilters active={filter} onChange={setFilter} />
+      </div>
+      <ApprovalQueue filter={filter} />
+    </div>
+  );
+}
+```
+
+### 7.4 CopilotKit Runtime Proxy
+
+The Next.js API route forwards CopilotKit requests to the FastAPI backend. This avoids CORS and keeps the frontend/backend under one origin during development.
+
+```ts
+// frontend/src/app/api/copilotkit/route.ts
+import {
+  CopilotRuntime,
+  copilotRuntimeNextJSAppRouterEndpoint,
+} from "@copilotkit/runtime";
+
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+
+export const POST = async (req: Request) => {
+  const runtime = new CopilotRuntime({
+    remoteEndpoints: [
+      {
+        url: `${BACKEND_URL}/api/copilotkit`,
+      },
+    ],
+  });
+
+  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
+    runtime,
+    endpoint: "/api/copilotkit",
+  });
+
+  return handleRequest(req);
+};
+```
+
+### 7.5 Persona Configuration
+
+```ts
+// frontend/src/lib/personas.ts
+export type PersonaSlug = "finance-manager" | "accountant" | "ceo";
+
+export interface Persona {
+  slug: PersonaSlug;
+  name: string;
+  role: string;
+  description: string;
+  icon: string;                // Lucide icon name
+  dotColor: string;            // Pill indicator dot color
+  gradientFrom: string;        // Avatar gradient start
+  gradientTo: string;          // Avatar gradient end
+  iconColor: string;           // Icon color inside avatar
+  defaultPermissions: {
+    dataAccess: string[];      // Neo4j CAN_REQUEST data resource IDs
+    tools: string[];           // Strands tool names
+    routing: string[];         // Target agent slugs this agent can reach
+  };
+}
+
+export const PERSONAS: Record<PersonaSlug, Persona> = {
+  "finance-manager": {
+    slug: "finance-manager",
+    name: "Alex Chen",
+    role: "Finance Manager",
+    description: "Requests financial data and summaries from other agents.",
+    icon: "TrendingUp",
+    dotColor: "#3B82F6",
+    gradientFrom: "#3B82F6",
+    gradientTo: "#1E40AF",
+    iconColor: "#60A5FA",
+    defaultPermissions: {
+      dataAccess: ["pnl", "invoices", "budget"],
+      tools: ["request_from_agent", "summarize_report"],
+      routing: ["accountant"],
+    },
+  },
+  accountant: {
+    slug: "accountant",
+    name: "Jordan Lee",
+    role: "Accountant",
+    description: "Fulfills data requests. Pulls P&L, invoices, and expenses. Gates sensitive data behind approvals.",
+    icon: "Calculator",
+    dotColor: "#4ADE80",
+    gradientFrom: "#22C55E",
+    gradientTo: "#14532D",
+    iconColor: "#4ADE80",
+    defaultPermissions: {
+      dataAccess: ["pnl", "invoices", "expenses", "budget"],
+      tools: ["pull_pnl", "pull_invoices", "check_approval_required"],
+      routing: ["finance-manager"],
+    },
+  },
+  ceo: {
+    slug: "ceo",
+    name: "Sam Rivera",
+    role: "CEO",
+    description: "Full access across the organization. Can request data from any agent and sees everything.",
+    icon: "Crown",
+    dotColor: "#C084FC",
+    gradientFrom: "#A855F7",
+    gradientTo: "#3B0764",
+    iconColor: "#C084FC",
+    defaultPermissions: {
+      dataAccess: ["pnl", "invoices", "expenses", "budget"],
+      tools: ["request_from_agent", "summarize_report"],
+      routing: ["accountant", "finance-manager"],
+    },
+  },
+};
+
+// All possible values for the permissions card checkboxes
+export const ALL_DATA_RESOURCES = ["pnl", "invoices", "budget", "expenses"];
+export const ALL_TOOLS = ["request_from_agent", "summarize_report", "pull_pnl", "pull_invoices", "check_approval_required"];
+export const ALL_AGENTS: PersonaSlug[] = ["finance-manager", "accountant", "ceo"];
+
+export const PERSONA_SLUGS = Object.keys(PERSONAS) as PersonaSlug[];
+```
+
+### 7.6 Key Components
+
+#### Layout
+
+| Component               | File                                   | Purpose                                                                      |
+| ----------------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
+| `TitleBar`              | `components/layout/TitleBar.tsx`       | macOS-style 52px header. Traffic lights (decorative), center tab nav (Ask \| Agents \| Tasks), right controls (new chat + avatar). Active tab: `bg-[#333]` fill, white bold text. |
+
+#### Ask Tab
+
+| Component               | File                                   | Purpose                                                                      |
+| ----------------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
+| `ChatPanel`             | `components/chat/ChatPanel.tsx`        | Wraps CopilotKit `<CopilotChat>` with persona-aware system prompt injection. Includes the input bar with plus, mic, and send buttons. |
+| `PersonaBadge`          | `components/persona/PersonaBadge.tsx`  | Pill badge showing active persona name with a green online dot. Uses `$bg-surface` background. |
+| `AgentStatusBar`        | `components/agent/AgentStatusBar.tsx`  | Animated bar driven by SSE events. Shows steps like "Routing to Accountant..." with a pulsing indicator. |
+
+#### Agents Tab
+
+| Component               | File                                   | Purpose                                                                      |
+| ----------------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
+| `AgentHero`             | `components/agent/AgentHero.tsx`       | Large display header: gradient avatar circle (blue for FM, green for Accountant, purple for CEO) + agent name in 36px Outfit bold + subtitle. |
+| `AgentSelector`         | `components/agent/AgentSelector.tsx`   | Horizontal pill group for switching agents. Active pill: `$bg-hover` fill with `$accent-primary` border. Inactive: `$border-strong` border only. Each pill has a colored dot + label. |
+| `PermissionsCard`       | `components/agent/PermissionsCard.tsx` | **Core new component.** Dark card (`$bg-input`, 720px) with 3 equal columns. Mirrors eevee's permission selection pattern. Each column has a title, checkbox list, and "Add more" button. Columns are: **Data Access** (Neo4j `CAN_REQUEST` edges), **Tools** (Strands tool assignments), **Routing** (which agents can be targeted). |
+| `PermissionCheckbox`    | `components/agent/PermissionCheckbox.tsx` | Individual checkbox row. Checked: purple `$accent-primary` square with white check icon. Unchecked: empty square with `$border-strong` border. Text is `$text-secondary` when checked, `$text-tertiary` when unchecked. |
+
+#### Tasks Tab
+
+| Component               | File                                   | Purpose                                                                      |
+| ----------------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
+| `ApprovalQueue`         | `components/approval/ApprovalQueue.tsx`| Vertical list of `ApprovalItem` cards, filterable by status. Width: 800px.   |
+| `ApprovalItem`          | `components/approval/ApprovalItem.tsx` | Single approval row: colored icon (amber=pending, green=approved, red=denied), title, metadata (source agent + timestamp), status badge, and approve/deny action buttons (pending items only). |
+| `ApprovalFilters`       | `components/approval/ApprovalFilters.tsx` | Horizontal filter chips: All (active: `$bg-hover` + bold), Pending, Approved. |
+| `ApprovalDialog`        | `components/approval/ApprovalDialog.tsx` | shadcn `Dialog` modal for detailed approve/deny with reason input. Appears as overlay from notification or from the approval item. |
+
+### 7.7 Hooks
+
+#### useAgentSSE — Real-time Agent State
 
 ```typescript
 // frontend/src/hooks/useAgentSSE.ts
-export function useAgentSSE(conversationId: string) {
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import type { AgentEvent, AgentEventType } from "@/lib/types";
+
+export function useAgentSSE(conversationId: string | null) {
   const [events, setEvents] = useState<AgentEvent[]>([]);
-  const [status, setStatus] = useState<AgentEventType>("idle");
+  const [status, setStatus] = useState<AgentEventType | "idle">("idle");
 
   useEffect(() => {
+    if (!conversationId) return;
+
     const source = new EventSource(
-      `/api/chat/stream?conversation_id=${conversationId}`
+      `/backend/chat/stream?conversation_id=${conversationId}`
     );
 
-    source.onmessage = (e) => {
+    source.addEventListener("message", (e) => {
       const event: AgentEvent = JSON.parse(e.data);
-      setEvents(prev => [...prev, event]);
+      setEvents((prev) => [...prev, event]);
       setStatus(event.type);
-    };
+    });
+
+    source.addEventListener("error", () => {
+      setStatus("idle");
+    });
 
     return () => source.close();
   }, [conversationId]);
 
-  return { events, status };
+  const reset = useCallback(() => {
+    setEvents([]);
+    setStatus("idle");
+  }, []);
+
+  return { events, status, reset };
+}
+```
+
+#### useApproval — Approval State Management
+
+```typescript
+// frontend/src/hooks/useApproval.ts
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+
+interface Approval {
+  id: string;
+  source_agent: string;
+  data_type: string;
+  sensitivity_reason: string;
+  status: "pending" | "approved" | "denied";
+}
+
+export function useApproval(persona: string) {
+  const [pending, setPending] = useState<Approval[]>([]);
+
+  // Poll for pending approvals (simple approach)
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const res = await fetch(`/backend/approvals?persona=${persona}`);
+      const data = await res.json();
+      setPending(data.filter((a: Approval) => a.status === "pending"));
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [persona]);
+
+  const approve = useCallback(async (id: string) => {
+    await fetch(`/backend/approvals/${id}/approve`, { method: "POST" });
+    setPending((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  const deny = useCallback(async (id: string) => {
+    await fetch(`/backend/approvals/${id}/deny`, { method: "POST" });
+    setPending((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  return { pending, approve, deny };
+}
+```
+
+#### Persona Store — Active Persona State
+
+Since the active persona is no longer URL-routed, it's managed in a Zustand store shared between the Ask and Agents tabs.
+
+```typescript
+// frontend/src/lib/store.ts
+import { create } from "zustand";
+import { PERSONAS, type PersonaSlug, type Persona } from "./personas";
+
+interface PersonaStore {
+  activeSlug: PersonaSlug;
+  activePersona: Persona;
+  setActive: (slug: PersonaSlug) => void;
+}
+
+export const usePersonaStore = create<PersonaStore>((set) => ({
+  activeSlug: "finance-manager",
+  activePersona: PERSONAS["finance-manager"],
+  setActive: (slug) =>
+    set({ activeSlug: slug, activePersona: PERSONAS[slug] }),
+}));
+```
+
+### 7.8 shadcn/ui Components Used
+
+These are the shadcn/ui primitives to install via `npx shadcn@latest add`:
+
+| Component    | Usage                                                   |
+| ------------ | ------------------------------------------------------- |
+| `button`     | Approve/deny buttons, send message, "Add more" buttons  |
+| `card`       | Agent cards, approval items                              |
+| `dialog`     | Approval detail modal                                    |
+| `badge`      | Status indicators (Pending/Approved/Denied), persona pill |
+| `avatar`     | Agent avatars in hero and selector pills                  |
+| `checkbox`   | Permission checkboxes in the PermissionsCard              |
+| `scroll-area`| Scrollable approval queue                                |
+| `skeleton`   | Loading states for chat messages                          |
+| `tooltip`    | Hover info on agent status steps                          |
+
+### 7.9 Design Tokens (CSS Variables)
+
+These map directly to the variables defined in the `agentorg.pen` design file and should be set in `globals.css`:
+
+```css
+/* frontend/src/styles/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --accent-hover: #7C3AED;
+  --accent-primary: #8B5CF6;
+  --bg-hover: #333333;
+  --bg-input: #2A2A2A;
+  --bg-primary: #0D0D0D;
+  --bg-surface: #1A1A1A;
+  --border-strong: #3F3F46;
+  --border-subtle: #2A2A2A;
+  --text-muted: #52525B;
+  --text-primary: #FFFFFF;
+  --text-secondary: #A1A1AA;
+  --text-tertiary: #71717A;
+  --status-pending: #F59E0B;
+  --status-approved: #10B981;
+  --status-denied: #EF4444;
+  --font-body: 'Inter', sans-serif;
+  --font-display: 'Outfit', sans-serif;
 }
 ```
 
@@ -841,12 +1341,22 @@ ddtrace                     # Datadog tracing (plug in later)
 ### Frontend (Node)
 
 ```
+next                        # Next.js 14+ (App Router)
+react                       # React 18
+react-dom                   # React DOM
 @copilotkit/react-core      # CopilotKit core
 @copilotkit/react-ui        # CopilotKit UI components
-next                        # Next.js framework
-react                       # React
-tailwindcss                 # Styling
+@copilotkit/runtime         # CopilotKit runtime (for API route proxy)
+zustand                     # Lightweight state management (active persona)
+tailwindcss                 # Utility-first CSS
+@tailwindcss/postcss        # PostCSS plugin for Tailwind
+lucide-react                # Icon library (used by shadcn/ui)
+class-variance-authority    # shadcn/ui dependency (component variants)
+clsx                        # shadcn/ui dependency (class merging)
+tailwind-merge              # shadcn/ui dependency (Tailwind class dedup)
 ```
+
+shadcn/ui components are installed via CLI (`npx shadcn@latest add <component>`) and live in `src/components/ui/` as local source — not a package dependency.
 
 ---
 
