@@ -167,14 +167,18 @@ Each agent is a Bedrock Claude invocation with:
 
 ## 4-Hour Build Plan
 
-| Time            | Task                                                                                                                                  | Focus                  |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| **0:00 – 0:30** | Set up AWS account (workshop link), Bedrock access, Neo4j instance, Datadog account. Scaffold FastAPI + CopilotKit frontend           | Infra                  |
-| **0:30 – 1:15** | Neo4j: seed org graph (3 nodes, permission edges, data access policies). Test Cypher queries for routing + auth                       | Data                   |
-| **1:15 – 2:15** | Bedrock agents: system prompts + tools for FM and Accountant. Orchestrator routing logic with `ddtrace` instrumentation on every call | Backend                |
-| **2:15 – 3:15** | CopilotKit: wire CoAgents to show agent state transitions in UI. End-to-end flow working                                              | Frontend + Integration |
-| **3:15 – 3:45** | Datadog dashboard: agent latency, approval queue depth, LLM observability panel. Polish demo                                          | Observability + Polish |
-| **3:45 – 4:00** | Demo rehearsal, backup recording                                                                                                      | Prep                   |
+Work is split between a **Backend Developer (BE)** and a **Frontend Developer (FE)** working in parallel.
+
+| Time            | Backend Developer (BE)                                                                          | Frontend Developer (FE)                                                          |
+| --------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **0:00 – 0:15** | Set up AWS/Bedrock, scaffold FastAPI backend, docker-compose up Neo4j                           | Scaffold CopilotKit + Next.js frontend, install deps, configure Tailwind         |
+| **0:15 – 1:15** | Seed Neo4j org graph, verify Cypher queries. Build Strands agents (FM + Accountant) with mock tools | Build PersonaSwitcher, ChatPanel, define shared types + API client               |
+| _1:15_          | _**Sync checkpoint:** Agree on API contract (chat request/response shape, SSE event schema)_    | |
+| **1:15 – 2:15** | Build orchestrator routing + Neo4j permission check. Build approval queue. Wire SSE stream      | Build `useAgentSSE` hook + AgentStatusBar. Build ApprovalDialog + AuditTrail     |
+| _2:15_          | _**Sync checkpoint:** BE confirms SSE stream is live; FE connects with real events_             | |
+| **2:15 – 3:00** | **Integration (both):** Wire frontend to backend — chat flow + SSE + approval UI. End-to-end test: FM → Accountant → approval → response | |
+| **3:00 – 3:45** | Add tracing spans, wire Datadog dashboard if time allows                                        | UI polish: loading states, error handling, styling                               |
+| **3:45 – 4:00** | **Demo prep (both):** Final rehearsal, backup recording                                         | |
 
 ---
 

@@ -852,20 +852,59 @@ tailwindcss                 # Styling
 
 ## 14. Build Order (Recommended)
 
-This is the suggested implementation sequence for the hackathon:
+Work is split between a **Backend Developer (BE)** and a **Frontend Developer (FE)** working in parallel, with integration checkpoints where both sync up.
 
-| Phase | Task                                             | Est. Time |
-| ----- | ------------------------------------------------ | --------- |
-| 1     | Scaffold monorepo, install deps, docker-compose up Neo4j | 15 min    |
-| 2     | Seed Neo4j graph, verify Cypher queries          | 15 min    |
-| 3     | Build Strands agents (FM + Accountant) with mock tools | 30 min    |
-| 4     | Build orchestrator: routing + permission check    | 30 min    |
-| 5     | Build approval queue state machine               | 15 min    |
-| 6     | Wire SSE event stream                            | 15 min    |
-| 7     | End-to-end test: FM → Accountant → approval → response | 15 min    |
-| 8     | Scaffold frontend: CopilotKit + persona switcher  | 20 min    |
-| 9     | Wire frontend to backend SSE + approval UI        | 25 min    |
-| 10    | Add tracing spans, wire Datadog if time allows    | 15 min    |
-| 11    | Polish, demo rehearsal, backup recording          | 15 min    |
+### Phase 1 — Scaffold & Infra (0:00 – 0:15)
+
+| Developer | Task                                                     | Est. Time |
+| --------- | -------------------------------------------------------- | --------- |
+| **BE**    | Scaffold `/backend`, install Python deps, docker-compose up Neo4j | 15 min    |
+| **FE**    | Scaffold `/frontend`, install Node deps, configure CopilotKit + Tailwind | 15 min    |
+
+### Phase 2 — Core Building Blocks (0:15 – 1:15)
+
+| Developer | Task                                                     | Est. Time |
+| --------- | -------------------------------------------------------- | --------- |
+| **BE**    | Seed Neo4j graph, verify Cypher queries                  | 15 min    |
+| **BE**    | Build Strands agents (FM + Accountant) with mock tools   | 30 min    |
+| **FE**    | Build PersonaSwitcher (FM / Accountant / CEO tabs)        | 15 min    |
+| **FE**    | Build ChatPanel with CopilotKit `<CopilotChat>` wrapper  | 20 min    |
+| **FE**    | Define shared TypeScript types (`lib/types.ts`, `lib/api.ts`) | 10 min    |
+
+> **Sync checkpoint:** Agree on API contract (`POST /api/chat` request/response shape, SSE event schema)
+
+### Phase 3 — Orchestration & UI Components (1:15 – 2:15)
+
+| Developer | Task                                                     | Est. Time |
+| --------- | -------------------------------------------------------- | --------- |
+| **BE**    | Build orchestrator: routing logic + Neo4j permission check | 30 min    |
+| **BE**    | Build approval queue state machine                       | 15 min    |
+| **BE**    | Wire SSE event stream (`EventStreamManager`)             | 15 min    |
+| **FE**    | Build `useAgentSSE` hook + `AgentStatusBar` component    | 20 min    |
+| **FE**    | Build `ApprovalDialog` + `useApproval` hook              | 20 min    |
+| **FE**    | Build `AuditTrail` sidebar component                     | 20 min    |
+
+> **Sync checkpoint:** BE confirms SSE stream is live; FE connects to it with real events
+
+### Phase 4 — Integration (2:15 – 3:00)
+
+| Developer | Task                                                     | Est. Time |
+| --------- | -------------------------------------------------------- | --------- |
+| **BE + FE** | Wire frontend to backend: chat flow + SSE + approval UI | 25 min    |
+| **BE + FE** | End-to-end test: FM → Accountant → approval → response  | 20 min    |
+
+### Phase 5 — Observability & Polish (3:00 – 3:45)
+
+| Developer | Task                                                     | Est. Time |
+| --------- | -------------------------------------------------------- | --------- |
+| **BE**    | Add tracing spans, wire Datadog if time allows           | 20 min    |
+| **FE**    | UI polish: loading states, error handling, styling        | 20 min    |
+| **BE + FE** | Demo rehearsal, fix any rough edges                     | 15 min    |
+
+### Phase 6 — Demo Prep (3:45 – 4:00)
+
+| Developer | Task                                                     | Est. Time |
+| --------- | -------------------------------------------------------- | --------- |
+| **BE + FE** | Final demo rehearsal, backup recording                  | 15 min    |
 
 **Total: ~3.5 hours** — leaves 30 min buffer.
