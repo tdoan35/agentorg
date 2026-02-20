@@ -1,8 +1,9 @@
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Callable
 from strands import Agent
 from strands.models import BedrockModel
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,8 @@ class AgentSpec:
     name: str
     role: str
     description: str
-    model_id: str = "us.amazon.nova-lite-v1:0"
+    model_id: str = ""
+    system_prompt: str = ""
     tools: list = None
     data_access: list = None
     routing: list = None
@@ -26,21 +28,34 @@ class AgentSpec:
         if self.routing is None:
             self.routing = []
 
+    def permissions_dict(self) -> dict[str, list[str]]:
+        return {
+            "dataAccess": list(self.data_access),
+            "tools": list(self.tools),
+            "routing": list(self.routing),
+        }
+
 
 class AgentFactory:
     _instance = None
     _registry: dict[str, type] = {}
+    _tools_registry: dict[str, Callable] = {}
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._registry = {}
+            cls._instance._tools_registry = {}
         return cls._instance
 
     @classmethod
     def register(cls, agent_type: str, agent_class: type):
         cls._registry[agent_type] = agent_class
         logger.info(f"Registered agent type: {agent_type}")
+
+    @classmethod
+    def register_tools(cls, tools: dict[str, Callable]) -> None:
+        cls._tools_registry.update(tools)
 
     @classmethod
     def build(cls, spec: AgentSpec) -> Agent:
@@ -60,9 +75,12 @@ class AgentFactory:
 
     @classmethod
     def build_default(cls, spec: AgentSpec) -> Agent:
-        model = BedrockModel(model_id=spec.model_id, streaming=False)
+        model_id = spec.model_id or os.environ.get(
+            "BEDROCK_MODEL_ID", "us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+        )
+        model = BedrockModel(model_id=model_id, streaming=False)
 
-        system_prompt = cls._build_system_prompt(spec)
+        system_prompt = spec.system_prompt or cls._build_system_prompt(spec)
 
         tools = cls._resolve_tools(spec.tools)
 
@@ -76,13 +94,6 @@ class AgentFactory:
 You have access to the following tools: {", ".join(spec.tools) if spec.tools else "none"}.
 Your data access scope: {", ".join(spec.data_access) if spec.data_access else "none"}.
 You can route to these agents: {", ".join(spec.routing) if spec.routing else "none"}.
-
-Respond ONLY in JSON format.
-Schema:
-{{
-  "status": "string",
-  "message": "string"
-}}
 """
         return prompt
 
@@ -90,6 +101,12 @@ Schema:
     def _resolve_tools(cls, tool_names: list) -> list:
         resolved = []
         for name in tool_names:
+            # First check the orchestrator tools registry
+            tool = cls._tools_registry.get(name)
+            if tool:
+                resolved.append(tool)
+                continue
+            # Fallback to tools module
             tool = cls._get_tool(name)
             if tool:
                 resolved.append(tool)
@@ -97,9 +114,15 @@ Schema:
 
     @classmethod
     def _get_tool(cls, name: str) -> Any:
-        import tools
-
-        return getattr(tools, name, None)
+        try:
+            from app import tools as tools_mod
+            return getattr(tools_mod, name, None)
+        except ImportError:
+            try:
+                import tools
+                return getattr(tools, name, None)
+            except ImportError:
+                return None
 
 
 AgentFactory.register("default", AgentFactory)

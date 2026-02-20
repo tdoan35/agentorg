@@ -1,0 +1,31 @@
+{
+  "report": "Profit & Loss Statement",
+  "period": "Q4 2024",
+  "currency": "USD",
+  "revenue": {
+    "product_sales": 2450000,
+    "service_revenue": 820000,
+    "other_income": 45000,
+    "total_revenue": 3315000
+  },
+  "cost_of_goods_sold": {
+    "materials": 680000,
+    "labor": 420000,
+    "overhead": 195000,
+    "total_cogs": 1295000
+  },
+  "gross_profit": 2020000,
+  "operating_expenses": {
+    "salaries": 680000,
+    "marketing": 245000,
+    "rent": 120000,
+    "utilities": 35000,
+    "depreciation": 62000,
+    "other": 88000,
+    "total_opex": 1230000
+  },
+  "operating_income": 790000,
+  "net_income": 632000,
+  "gross_margin_pct": 60.9,
+  "net_margin_pct": 19.1
+}

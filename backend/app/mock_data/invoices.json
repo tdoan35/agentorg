@@ -1,0 +1,65 @@
+{
+  "invoices": [
+    {
+      "id": "INV-2024-001",
+      "vendor": "CloudCorp AWS",
+      "category": "infrastructure",
+      "amount": 42500.00,
+      "status": "paid",
+      "due_date": "2024-10-15",
+      "paid_date": "2024-10-12"
+    },
+    {
+      "id": "INV-2024-002",
+      "vendor": "DataDog Inc.",
+      "category": "monitoring",
+      "amount": 8750.00,
+      "status": "paid",
+      "due_date": "2024-10-30",
+      "paid_date": "2024-10-28"
+    },
+    {
+      "id": "INV-2024-003",
+      "vendor": "Office Solutions Ltd.",
+      "category": "office_supplies",
+      "amount": 3200.00,
+      "status": "paid",
+      "due_date": "2024-11-05",
+      "paid_date": "2024-11-03"
+    },
+    {
+      "id": "INV-2024-004",
+      "vendor": "TechRecruit Partners",
+      "category": "recruiting",
+      "amount": 25000.00,
+      "status": "pending",
+      "due_date": "2024-12-15",
+      "paid_date": null
+    },
+    {
+      "id": "INV-2024-005",
+      "vendor": "Legal Eagles LLP",
+      "category": "legal",
+      "amount": 15800.00,
+      "status": "overdue",
+      "due_date": "2024-11-30",
+      "paid_date": null
+    },
+    {
+      "id": "INV-2024-006",
+      "vendor": "Anthropic API",
+      "category": "ai_services",
+      "amount": 18900.00,
+      "status": "pending",
+      "due_date": "2024-12-20",
+      "paid_date": null
+    }
+  ],
+  "summary": {
+    "total_invoices": 6,
+    "total_amount": 114150.00,
+    "paid": 54450.00,
+    "pending": 43900.00,
+    "overdue": 15800.00
+  }
+}

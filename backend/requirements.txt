@@ -5,6 +5,11 @@ bedrock-agentcore
 aws-opentelemetry-distro
 boto3>=1.34.0
 pydantic==2.12.5
+pydantic-settings>=2.0.0
 mcp==1.26.0
 python-dotenv==1.2.1
 PyYAML==6.0.3
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+sse-starlette>=2.0.0
+neo4j>=5.0.0
