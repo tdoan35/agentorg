@@ -35,8 +35,19 @@ export const api = {
     let cleaned = rawResponse.replace(/^"|"$/g, "").replace(/\\n/g, "\n").replace(/\\"/g, '"');
     cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>\n?/, "").trim();
 
+    // If the response is a JSON string, extract the message
+    let finalMessage = cleaned;
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (parsed && parsed.message) {
+        finalMessage = parsed.message;
+      }
+    } catch (e) {
+      // Not JSON, use cleaned string as is
+    }
+
     return {
-      response: cleaned,
+      response: finalMessage,
       conversation_id: body.conversation_id || "default",
       agent: "assistant",
     };
