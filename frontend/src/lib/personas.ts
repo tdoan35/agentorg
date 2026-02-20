@@ -20,7 +20,7 @@ export interface Persona {
 export const PERSONAS: Record<PersonaSlug, Persona> = {
   "finance-manager": {
     slug: "finance-manager",
-    name: "Alex Chen",
+    name: "fm_agent",
     role: "Finance Manager",
     description:
       "Requests financial data and summaries from other agents.",
@@ -37,7 +37,7 @@ export const PERSONAS: Record<PersonaSlug, Persona> = {
   },
   accountant: {
     slug: "accountant",
-    name: "Jordan Lee",
+    name: "acct_agent",
     role: "Accountant",
     description:
       "Fulfills data requests. Pulls P&L, invoices, and expenses. Gates sensitive data behind approvals.",
@@ -54,7 +54,7 @@ export const PERSONAS: Record<PersonaSlug, Persona> = {
   },
   ceo: {
     slug: "ceo",
-    name: "Sam Rivera",
+    name: "ceo_agent",
     role: "CEO",
     description:
       "Full access across the organization. Can request data from any agent and sees everything.",

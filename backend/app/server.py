@@ -4,9 +4,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
+
+from dotenv import load_dotenv
+
+# Load .env into os.environ so boto3/Strands can find AWS credentials
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
