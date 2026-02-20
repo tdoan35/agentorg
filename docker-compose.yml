@@ -11,6 +11,6 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
-      - BEDROCK_MODEL_ID=us.amazon.nova-lite-v1:0
+      - BEDROCK_MODEL_ID=${BEDROCK_MODEL_ID:-us.anthropic.claude-3-5-sonnet-20241022-v2:0}
     volumes:
       - ./backend/app:/app

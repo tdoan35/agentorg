@@ -24,7 +24,7 @@ Schema:
 
 def create_agent():
     model = BedrockModel(
-        model_id="us.amazon.nova-lite-v1:0",
+        model_id=os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-3-5-sonnet-20241022-v2:0"),
         streaming=False
     )
     

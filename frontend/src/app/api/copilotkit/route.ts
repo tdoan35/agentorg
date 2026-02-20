@@ -1,21 +1,19 @@
 import {
   CopilotRuntime,
+  AnthropicAdapter,
   copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
 
-const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
+const serviceAdapter = new AnthropicAdapter({
+  model: "claude-sonnet-4-20250514",
+});
 
 export const POST = async (req: Request) => {
-  const runtime = new CopilotRuntime({
-    remoteEndpoints: [
-      {
-        url: `${BACKEND_URL}/api/copilotkit`,
-      },
-    ],
-  });
+  const runtime = new CopilotRuntime();
 
   const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
     runtime,
+    serviceAdapter,
     endpoint: "/api/copilotkit",
   });
 
