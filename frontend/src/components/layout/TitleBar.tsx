@@ -16,13 +16,8 @@ export function TitleBar() {
 
   return (
     <header className="h-[52px] bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] flex items-center justify-between px-4 shrink-0">
-      {/* Left: Traffic lights + sidebar toggle + nav arrows */}
+      {/* Left: sidebar toggle + nav arrows */}
       <div className="flex items-center gap-3">
-        <div className="flex gap-2">
-          <div className="w-3 h-3 rounded-full bg-[#FF5F57]" />
-          <div className="w-3 h-3 rounded-full bg-[#FEBC2E]" />
-          <div className="w-3 h-3 rounded-full bg-[#28C840]" />
-        </div>
         <button className="text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] p-1">
           <PanelLeft className="w-4 h-4" />
         </button>

@@ -1,0 +1,125 @@
+/* CopilotChat theme overrides — match AgentOrg dark theme */
+
+.copilotKitChat {
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 0.75rem !important;
+  font-family: var(--font-body) !important;
+  color: var(--text-primary) !important;
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
+/* Messages area */
+.copilotKitMessages {
+  background-color: var(--bg-surface) !important;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* User messages */
+.copilotKitUserMessage {
+  background-color: var(--accent-primary) !important;
+  color: white !important;
+  border-radius: 0.5rem !important;
+}
+
+/* Assistant messages */
+.copilotKitAssistantMessage {
+  background-color: var(--bg-input) !important;
+  color: var(--text-primary) !important;
+  border-radius: 0.5rem !important;
+  padding: 0.75rem 1rem !important;
+}
+
+/* Input container — bottom of chat */
+.copilotKitInputContainer {
+  background-color: var(--bg-surface) !important;
+  border-top: 1px solid var(--border-subtle) !important;
+  padding: 0.75rem 1rem !important;
+}
+
+/* Input pill wrapper */
+.copilotKitInput {
+  background-color: var(--bg-input) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 0.625rem !important;
+  width: 100% !important;
+  padding: 0.625rem 0.75rem !important;
+  min-height: unset !important;
+}
+
+.copilotKitInput:focus-within {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 0 1px var(--accent-primary) !important;
+}
+
+/* Textarea inside the pill */
+.copilotKitInput > textarea {
+  color: var(--text-primary) !important;
+  font-family: var(--font-body) !important;
+  font-size: 0.875rem !important;
+  background-color: transparent !important;
+}
+
+.copilotKitInput > textarea::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* Send / control buttons */
+.copilotKitInputControlButton:not([disabled]) {
+  color: var(--accent-primary) !important;
+}
+
+.copilotKitInputControlButton:not([disabled]):hover {
+  color: var(--accent-hover) !important;
+}
+
+.copilotKitInputControlButton[disabled] {
+  color: var(--text-muted) !important;
+}
+
+/* Hide powered-by footer */
+.poweredBy {
+  display: none !important;
+}
+
+/* Suggestions */
+.copilotKitSuggestions button {
+  background-color: var(--bg-input) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-secondary) !important;
+  border-radius: 0.5rem !important;
+}
+
+.copilotKitSuggestions button:hover {
+  background-color: var(--bg-hover) !important;
+  border-color: var(--accent-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Header — hide it since we have our own layout */
+.copilotKitHeader {
+  display: none !important;
+}
+
+/* Markdown in messages */
+.copilotKitAssistantMessage pre {
+  background-color: var(--bg-primary) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 0.375rem !important;
+}
+
+.copilotKitAssistantMessage code {
+  color: var(--accent-primary) !important;
+}
+
+/* Action buttons (regenerate, copy, thumbs) — hidden */
+.copilotKitMessageControls {
+  display: none !important;
+}
+
+/* Response-in-progress indicator */
+.copilotKitResponseInProgress {
+  color: var(--text-tertiary) !important;
+}

@@ -190,6 +190,27 @@ async def deny_request(approval_id: str):
     return req.to_dict()
 
 
+@app.post("/api/approvals/{approval_id}/fulfill")
+async def fulfill_request(approval_id: str):
+    result = orchestrator.fulfill_approved_request(approval_id)
+    if result["status"] == "not_found":
+        raise HTTPException(status_code=404, detail="Approval request not found")
+    return result
+
+
+@app.delete("/api/approvals")
+async def clear_approvals():
+    count = approval_queue.clear()
+    return {"deleted": count}
+
+
+@app.delete("/api/approvals/{approval_id}")
+async def delete_approval(approval_id: str):
+    if not approval_queue.delete(approval_id):
+        raise HTTPException(status_code=404, detail="Approval request not found")
+    return {"deleted": True}
+
+
 # ── Run ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn

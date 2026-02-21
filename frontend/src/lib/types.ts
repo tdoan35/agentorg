@@ -55,3 +55,9 @@ export interface AgentConfig {
     routing: string[];
   };
 }
+
+export interface FulfillResponse {
+  status: string;
+  data?: string;
+  data_type?: string;
+}

@@ -1,4 +1,4 @@
-import type { ChatRequest, ChatResponse, Approval, AgentConfig } from "./types";
+import type { ChatRequest, ChatResponse, Approval, AgentConfig, FulfillResponse } from "./types";
 
 const BASE_URL = "/backend";
 
@@ -79,5 +79,11 @@ export const api = {
 
   denyRequest(id: string) {
     return fetchJSON<Approval>(`/approvals/${id}/deny`, { method: "POST" });
+  },
+
+  fulfillApproval(id: string) {
+    return fetchJSON<FulfillResponse>(`/approvals/${id}/fulfill`, {
+      method: "POST",
+    });
   },
 };

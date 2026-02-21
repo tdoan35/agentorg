@@ -109,5 +109,14 @@ class ApprovalQueue:
             results = [r for r in results if r.status.value == status]
         return [r.to_dict() for r in results]
 
+    def delete(self, approval_id: str) -> bool:
+        return self._requests.pop(approval_id, None) is not None
+
+    def clear(self) -> int:
+        count = len(self._requests)
+        self._requests.clear()
+        logger.info("Cleared %d approval requests", count)
+        return count
+
 
 approval_queue = ApprovalQueue()
